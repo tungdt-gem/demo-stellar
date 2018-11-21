@@ -1,49 +1,88 @@
 'use strict'
 
 const stellar = require('stellar-sdk')
+const StellarSdk = require('stellar-sdk')
 const request = require('request')
 const logger = require('./logger')
 
-const localServer = new stellar.Server('http://localhost:8000', { allowHttp: true })
-const testnetServer = new stellar.Server('https://horizon-testnet.stellar.org')
-stellar.Network.useTestNetwork()
+// const localServer = new stellar.Server('http://localhost:8000', { allowHttp: true })
+// const testnetServer = new stellar.Server('https://horizon-testnet.stellar.org')
+// stellar.Network.useTestNetwork()
 
 let createAccount = () => {
-  logger.info('Start create account')
-  let pair = stellar.Keypair.random()
+  StellarSdk.Network.use(new StellarSdk.Network('Standalone Network ; Nov 2018'))
+  let stellarServer = new StellarSdk.Server('http://172.16.10.46:8000', { allowHttp: true })
+  // let stellarServer = new StellarSdk.Server('http://127.0.0.1:8000', { allowHttp: true })
+  // StellarSdk.Network.useTestNetwork()
+  // let stellarServer = new StellarSdk.Server('http://127.0.0.1:8000', { allowHttp: true })
 
-  logger.info(
-    'Account created',
-    '\n - secret: ', pair.secret(),
-    '\n - public_key: ', pair.publicKey()
-  )
+  var desKey = StellarSdk.Keypair.random();
+  // var sourceKey = StellarSdk.Keypair
+  //   .fromSecret('SBLX3SFXPQGIH5BUBXEQ4NUODMD4O2YWUBQMTKSQPXQ2WPJQJ6D4NXQL');
+  var sourceKey = StellarSdk.Keypair.master()
 
-  // Request luments for test account
-  logger.info(
-    'Start request luments'
-  )
+  console.log("des:", desKey.publicKey())
+  console.log("source:", sourceKey.publicKey())
 
-  const checkBalance = () => {
-    return getBalance(pair.publicKey())
-      .catch(stellar.NotFoundError, checkBalance)
-      .then(() => {
-        logger.info('Done!')
-      })
-  }
+  stellarServer
+    .loadAccount(sourceKey.publicKey())
+    .then(sourceAccount => {
+      console.log('source account', sourceAccount)
+      let transaction = new StellarSdk.TransactionBuilder(sourceAccount)
+        .addOperation(
+          StellarSdk.Operation.createAccount({
+            destination: desKey.publicKey(),
+            startingBalance: "1000"
+          })
+        )
+        .build();
+      transaction.sign(sourceKey);
+      return stellarServer.submitTransaction(transaction);
+    })
+    .then(result => {
+        console.log("success" + JSON.stringify(result, undefined, 2));
+    })
+    .catch(error => {
+        console.log('error', error);
+        console.log(error.response.data.extras);
+    });
 
-  request.get({
-    url: 'https://friendbot.stellar.org',
-    qs: { addr: pair.publicKey() },
-    json: true
-  }, function (error, response, body) {
-    if (error || response.statusCode !== 200) {
-      logger.error('ERROR!', error || body)
-    } else {
-      logger.info('SUCCESS! Luments already distributed :)\n')
-      logger.debug(JSON.stringify(body, null, 2))
-      return checkBalance()
-    }
-  })
+
+  // logger.info('Start create account')
+  // let pair = stellar.Keypair.random()
+  //
+  // logger.info(
+  //   'Account created',
+  //   '\n - secret: ', pair.secret(),
+  //   '\n - public_key: ', pair.publicKey()
+  // )
+  //
+  // // Request luments for test account
+  // logger.info(
+  //   'Start request luments'
+  // )
+  //
+  // const checkBalance = () => {
+  //   return getBalance(pair.publicKey())
+  //     .catch(stellar.NotFoundError, checkBalance)
+  //     .then(() => {
+  //       logger.info('Done!')
+  //     })
+  // }
+  //
+  // request.get({
+  //   url: 'https://friendbot.stellar.org',
+  //   qs: { addr: pair.publicKey() },
+  //   json: true
+  // }, function (error, response, body) {
+  //   if (error || response.statusCode !== 200) {
+  //     logger.error('ERROR!', error || body)
+  //   } else {
+  //     logger.info('SUCCESS! Luments already distributed :)\n')
+  //     logger.debug(JSON.stringify(body, null, 2))
+  //     return checkBalance()
+  //   }
+  // })
 }
 
 const getBalance = (accountPublicKey) => {
