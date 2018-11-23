@@ -10,7 +10,12 @@ program
 program
   .command('createAccount')
   .description('Create a new account')
-  .action(wallet.createAccount)
+  .action(wallet.createAccountFromMaster)
+
+program
+  .command('createChannel')
+  .description('Create a new account from channel')
+  .action(wallet.createChannel)
 
 program
   .command('transferMoney <source_seed> <amount> <destination_public> [memo]')
