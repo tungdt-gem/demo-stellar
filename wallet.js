@@ -11,28 +11,20 @@ stellar.Network.useTestNetwork()
 
 let sourceAccId, sequenceNumber = -99
 let currentIndexChannel = 0;
-let channelAccounts = []
 
 let createAccountFromChannel = (req, res) => {
-
-  console.log(req.query.sourceAccountChannel)
-  res.json(1)
 
   StellarSdk.Network.use(new StellarSdk.Network('Standalone Network ; Nov 2018'))
   let stellarServer = new StellarSdk.Server('http://127.0.0.1:8000', {allowHttp: true})
 
   const desKey = StellarSdk.Keypair.random()
   const sourceKey = StellarSdk.Keypair.master()
-  channelAccounts.push(StellarSdk.Keypair.fromSecret(secretChannelKey[currentIndexChannel]))
+  const channelAccount = StellarSdk.Keypair.fromSecret(req.query.sourceAccountChannel)
 
   console.log('des', desKey.publicKey())
-  console.log('channel', channelAccounts[++currentIndexChannel].publicKey())
-  if (currentIndexChannel > channelAccounts.length - 1) {
-    currentIndexChannel = 0
-  }
 
   stellarServer
-    .loadAccount(channelAccounts[0].publicKey())
+    .loadAccount(channelAccount.publicKey())
     .then(chAccount => {
       console.log('account', chAccount)
       let transaction =
@@ -47,7 +39,7 @@ let createAccountFromChannel = (req, res) => {
           .build();
 
       transaction.sign(sourceKey);   // base account must sign to approve the payment
-      transaction.sign(channelAccounts[0]);  // channel must sign to approve it being the source of the transaction
+      transaction.sign(channelAccount);  // channel must sign to approve it being the source of the transaction
 
       return stellarServer.submitTransaction(transaction)
     })
@@ -261,5 +253,5 @@ module.exports = {
   withdrawMoney,
   getBalance,
   createAccountFromMaster,
-  createAccountFromChannel
+  createAccountFromChannel,
 }
