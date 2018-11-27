@@ -1,8 +1,10 @@
+'use strict'
+
 const express = require('express');
 const app = express();
 const wallet = require('./wallet')
 
-const server = app.listen(8081, function () {
+const server = app.listen(process.argv[2], function () {
 
   const host = server.address().address;
   const port = server.address().port;

@@ -4,29 +4,34 @@ const stellar = require('stellar-sdk')
 const StellarSdk = require('stellar-sdk')
 const request = require('request')
 const logger = require('./logger')
+let fs = require('fs');
 
-const localServer = new stellar.Server('http://localhost:8000', { allowHttp: true })
-const testnetServer = new stellar.Server('https://horizon-testnet.stellar.org')
-stellar.Network.useTestNetwork()
+// const localServer = new stellar.Server('http://localhost:8000', { allowHttp: true })
+// const testnetServer = new stellar.Server('https://horizon-testnet.stellar.org')
+// stellar.Network.useTestNetwork()
+
+let urls = ['http://172.16.10.45:8000', 'http://172.16.10.46:8000', 'http://172.16.10.47:8000']
+
+StellarSdk.Network.use(new StellarSdk.Network('Standalone Network ; Nov 2018'))
+// StellarSdk.Network.useTestNetwork()
+
+// let stellarServer = new StellarSdk.Server('http://172.16.10.45:8000', { allowHttp: true })
+let stellarServer = new StellarSdk.Server('http://127.0.0.1:8000', {allowHttp: true})
 
 let sourceAccId, sequenceNumber = -99
-let currentIndexChannel = 0;
 
 let createAccountFromChannel = (req, res) => {
-
-  StellarSdk.Network.use(new StellarSdk.Network('Standalone Network ; Nov 2018'))
-  let stellarServer = new StellarSdk.Server('http://127.0.0.1:8000', {allowHttp: true})
+  let stellarServer = new StellarSdk.Server(urls[getRandomInt(0, urls.length - 1)], {allowHttp: true})
 
   const desKey = StellarSdk.Keypair.random()
   const sourceKey = StellarSdk.Keypair.master()
-  const channelAccount = StellarSdk.Keypair.fromSecret(req.query.sourceAccountChannel)
+  const channelAccountKey = StellarSdk.Keypair.fromSecret(req.query.sourceAccountChannel)
 
-  console.log('des', desKey.publicKey())
 
   stellarServer
-    .loadAccount(channelAccount.publicKey())
+    .loadAccount(channelAccountKey.publicKey())
     .then(chAccount => {
-      console.log('account', chAccount)
+      // console.log(chAccount)
       let transaction =
         new StellarSdk.TransactionBuilder(chAccount)
           .addOperation(
@@ -39,39 +44,176 @@ let createAccountFromChannel = (req, res) => {
           .build();
 
       transaction.sign(sourceKey);   // base account must sign to approve the payment
-      transaction.sign(channelAccount);  // channel must sign to approve it being the source of the transaction
+      transaction.sign(channelAccountKey);  // channel must sign to approve it being the source of the transaction
 
       return stellarServer.submitTransaction(transaction)
     })
     .then(result => {
-      console.log("success" + JSON.stringify(result, undefined, 2));
+      // console.log("success" + JSON.stringify(result, undefined, 2));
+      res.json(result)
     })
     .catch(error => {
       if (error.response && error.response.data && error.response.data.extras) {
         console.log('------', error.response.data.extras)
       }
       else console.log('error', error)
+      res.status(400);
+      res.send('error');
+    });
+}
+
+let allowTrust = (res) => {
+  const sourceKey = StellarSdk.Keypair.fromSecret('SCRK7RHGT23SM2BFTD3DG7R23F7SNKFHVQIUSYM43VPGJ7MGE3AFWSFQ')
+
+  stellarServer
+    .loadAccount(sourceKey.publicKey())
+    .then(sourceAccount => {
+      let transaction = new StellarSdk.TransactionBuilder(sourceAccount)
+        .addOperation(
+          StellarSdk.Operation.allowTrust({
+            trustor: 'GD7NQ47MQRRTDCBPFHI57FEUJD6YO62CVTKW33ABQQ6VORHPSCUUXEXL',
+            assetCode: 'VND',
+            authorize: false
+          })
+        )
+        .build();
+      transaction.sign(sourceKey);
+      return stellarServer.submitTransaction(transaction);
+    })
+    .then(result => {
+      console.log("success" + JSON.stringify(result, undefined, 2));
+      res.json(result)
+    })
+    .catch(error => {
+      console.log(error.response.data)
+      res.status(400);
+      res.send('error');
+    });
+
+}
+
+let createAsset = (res) => {
+  const sourceKey = StellarSdk.Keypair.fromSecret('SCRK7RHGT23SM2BFTD3DG7R23F7SNKFHVQIUSYM43VPGJ7MGE3AFWSFQ')
+
+  stellarServer
+    .loadAccount(sourceKey.publicKey())
+    .then(sourceAccount => {
+      let transaction = new StellarSdk.TransactionBuilder(sourceAccount)
+        .addOperation(
+          StellarSdk.Operation.payment({
+            destination: 'GD7NQ47MQRRTDCBPFHI57FEUJD6YO62CVTKW33ABQQ6VORHPSCUUXEXL',
+            asset: new StellarSdk.Asset('VND', 'GB2JGTBVUBPWT5CWD2HMQL3IN73RLSFIABK73ZGI52EKPVPT6LVUBBYB'),
+            amount: '100'
+          })
+        )
+        .build();
+      transaction.sign(sourceKey);
+      return stellarServer.submitTransaction(transaction);
+    })
+    .then(result => {
+      console.log("success" + JSON.stringify(result, undefined, 2));
+      res.json(result)
+    })
+    .catch(error => {
+      console.log(error)
+      res.status(400);
+      res.send('error');
+    });
+
+}
+
+let createTrust = (res) => {
+  const sourceKey = StellarSdk.Keypair.fromSecret('SAG3KTPIKRPLFLOCUVJ5J62X3C65MRTQSISUUJHRLJEQA3TNIVVK2VLP')
+
+  stellarServer
+    .loadAccount(sourceKey.publicKey())
+    .then(sourceAccount => {
+      let transaction = new StellarSdk.TransactionBuilder(sourceAccount)
+        .addOperation(
+          StellarSdk.Operation.changeTrust({
+            asset: new StellarSdk.Asset('VND', 'GB2JGTBVUBPWT5CWD2HMQL3IN73RLSFIABK73ZGI52EKPVPT6LVUBBYB'),
+            // limit: '100'
+          })
+        )
+        .build();
+      transaction.sign(sourceKey);
+      return stellarServer.submitTransaction(transaction);
+    })
+    .then(result => {
+      console.log("success" + JSON.stringify(result, undefined, 2));
+      res.json(result)
+    })
+    .catch(error => {
+      if (error.response && error.response.data && error.response.data.extras) {
+        if (error.response.data.extras.result_codes && error.response.data.extras.result_codes.transaction === 'tx_bad_seq')
+          console.log(stellarServer.serverURL + " " + currentSeq)
+        console.log('------', error.response.data.extras)
+      }
+      else console.log('error', error)
+      res.status(400);
+      res.send('error');
+    });
+
+}
+
+let setSigningKey = (res) => {
+  // const sourceKey = StellarSdk.Keypair.master()
+  const newSigner = StellarSdk.Keypair.random()
+  const sourceKey = StellarSdk.Keypair.fromSecret('SCRK7RHGT23SM2BFTD3DG7R23F7SNKFHVQIUSYM43VPGJ7MGE3AFWSFQ')
+
+  console.log('new signer', newSigner.publicKey() + ' ' + newSigner.secret())
+
+  stellarServer
+    .loadAccount(sourceKey.publicKey())
+    .then(sourceAccount => {
+      let transaction = new StellarSdk.TransactionBuilder(sourceAccount)
+        .addOperation(
+          StellarSdk.Operation.setOptions({
+            // setFlags: StellarSdk.xdr.AccountFlags.authRevocableFlag().value | StellarSdk.xdr.AccountFlags.authRequiredFlag().value
+            // homeDomain: 'DOMAIN/.well-known/stellar.toml'
+            // masterWeight: 2,
+            // lowThreshold: 2,
+            // medThreshold: 2,
+            // highThreshold: 3,
+            // signer: {
+            //   ed25519PublicKey: newSigner.publicKey(),
+            //   weight: 2
+            // }
+          })
+        )
+        // .addOperation(
+        //   StellarSdk.Operation.bumpSequence({
+        //     bumpTo: '20',
+        //   })
+        // )
+        .build();
+      transaction.sign(sourceKey);
+      return stellarServer.submitTransaction(transaction);
+    })
+    .then(result => {
+      console.log("success" + JSON.stringify(result, undefined, 2));
+      res.json(result)
+    })
+    .catch(error => {
+      if (error.response && error.response.data && error.response.data.extras) {
+        if (error.response.data.extras.result_codes && error.response.data.extras.result_codes.transaction === 'tx_bad_seq')
+          console.log(stellarServer.serverURL + " " + currentSeq)
+        console.log('------', error.response.data.extras)
+      }
+      else console.log('error', error)
+      res.status(400);
+      res.send('error');
     });
 }
 
 let createAccountFromMaster = (res) => {
-  let urls = ['http://172.16.10.45:8000', 'http://172.16.10.46:8000', 'http://172.16.10.47:8000']
-
-  StellarSdk.Network.use(new StellarSdk.Network('Standalone Network ; Nov 2018'))
-  // StellarSdk.Network.useTestNetwork()
-
-  // let stellarServer = new StellarSdk.Server('http://172.16.10.45:8000', { allowHttp: true })
   // let stellarServer = new StellarSdk.Server(urls[getRandomInt(0, urls.length - 1)], {allowHttp: true})
-  let stellarServer = new StellarSdk.Server('http://127.0.0.1:8000', {allowHttp: true})
 
-  // var sourceKey = StellarSdk.Keypair
-  //   .fromSecret('SBLX3SFXPQGIH5BUBXEQ4NUODMD4O2YWUBQMTKSQPXQ2WPJQJ6D4NXQL');
   const desKey = StellarSdk.Keypair.random();
   const sourceKey = StellarSdk.Keypair.master()
 
-  // console.log("des:", desKey.publicKey())
-  console.log(desKey.secret())
-  // console.log("source:", sourceKey.publicKey())
+  console.log('des:', desKey.publicKey())
+  console.log("source:", sourceKey.publicKey())
 
   let currentSeq
 
@@ -87,7 +229,7 @@ let createAccountFromMaster = (res) => {
       const account = new StellarSdk.Account(sourceAccId, sequenceNumber.toString());
       currentSeq = sequenceNumber.toString()
 
-      let transaction = new StellarSdk.TransactionBuilder(sourceAccount)
+      let transaction = new StellarSdk.TransactionBuilder(account)
         .addOperation(
           StellarSdk.Operation.createAccount({
             destination: desKey.publicKey(),
@@ -100,7 +242,9 @@ let createAccountFromMaster = (res) => {
     })
     .then(result => {
       // console.log("success" + JSON.stringify(result, undefined, 2));
-      res.json("success")
+      console.log(desKey.secret())
+      res.json(result)
+      fs.appendFileSync('source-channel.csv', desKey.secret() + '\n');
     })
     .catch(error => {
       if (error.response && error.response.data && error.response.data.extras) {
@@ -110,7 +254,7 @@ let createAccountFromMaster = (res) => {
       }
       else console.log('error', error)
       res.status(400);
-      res.send('fail');
+      res.send('error');
     });
 }
 
@@ -254,4 +398,8 @@ module.exports = {
   getBalance,
   createAccountFromMaster,
   createAccountFromChannel,
+  setSigningKey,
+  createTrust,
+  createAsset,
+  allowTrust,
 }
